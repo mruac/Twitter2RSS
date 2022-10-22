@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<base target="_top" />
+	<title>Twitter2RSS builder</title>
+	<script src="https://code.jquery.com/jquery-3.6.0.slim.min.js"
+		integrity="sha256-u7e5khyithlIdTpu22PHhENmPcRdFiHRjhAuHcs05RI=" crossorigin="anonymous"></script>
+	<script>
+		$(window).on("load", function () {
+			$(".url").each(function () {
+				$(this).text(window.location.host);
+			})
+		});
+
+		function updateURL() {
+			var res = $("#rssLink");
+			var queryText = $(`label[for=value]`);
+
+			var itemTitle = $("input[name=title]:checked").val();
+			var feedType = $("input[name=feed_type]:checked").val();
+			switch (feedType) {
+				case "user": queryText.text("User's @:");
+					break;
+				case "likes": queryText.text("User's @:");
+					break;
+				case "list": queryText.text("List ID:");
+					break;
+				case "search": queryText.text("Search Query:");
+					break;
+			}
+
+			var tweetType = new Array();
+			$("input[name=type]:checked").each(function () {
+				tweetType.push(this.value);
+			});
+			if (tweetType < 1) {
+				res.text("At least one Tweet type must be selected.");
+				res.removeAttr("href");
+				return;
+			}
+
+			var tweetContents = new Array();
+			$("input[name=filters]:checked").each(function () {
+				tweetContents.push(this.value);
+			});
+			if (tweetContents < 1) {
+				res.text("At least one Tweet content must be selected.");
+				res.removeAttr("href");
+				return;
+			}
+
+			var value = $("input[name=value]").val();
+			if (value == "") {
+				res.text("Empty value!");
+				res.removeAttr("href");
+				return;
+			} else if (feedType == "list" && !/^\d+$/.test(value)) {
+				res.text("List ID only has numbers. Check your value and try again.");
+				res.removeAttr("href");
+				return;
+
+			}
+
+			res.attr("href", `/rss?q=${value}&action=${feedType}&filters=${tweetType.join(",")},${tweetContents.join(",")}&title=${itemTitle}`);
+			res.text("LINK");
+		}
+	</script>
+	<style>
+		* {
+			font-family: sans-serif;
+		}
+
+		.mono,
+		.url {
+			font-family: monospace;
+		}
+
+		table,
+		th,
+		td {
+			border: 1px solid black;
+			border-collapse: collapse;
+		}
+
+		td {
+			padding: 5px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Twitter2RSS Usage</h1>
+	<h2>Examples:</h2>
+	<p>
+		Updates from @Twitter with Default filters (Tweets, Retweets, Replies):
+	</p>
+	<p class="mono">
+		<span class="url">YOUR_URL_HERE</span>/rss?action=timeline&q=twitter
+	</p>
+
+	<p>Updates from @Twitter, with ONLY Tweets with attachments:</p>
+	<p class="mono">
+		<span class="url">YOUR_URL_HERE</span>/rss?action=timeline&q=twitter&filters=tweets,attachments
+	</p>
+
+	<p>
+		Search results for "<span class="mono">twitter rss</span>", with ONLY Text-only Tweets, Retweets &
+		Replies:
+	</p>
+	<p class="mono">
+		<span
+			class="url">YOUR_URL_HERE</span>/rss?action=search&q=%22twitter+rss%22&filters=tweets,retweets,replies,text
+	</p>
+
+	<p>
+		Updates from Twitter List, with ONLY Tweets that are replying to another:
+	</p>
+	<p class="mono">
+		<span class="url">YOUR_URL_HERE</span>/rss?action=list&q=99924643&filters=replies
+	</p>
+
+	<p>User Likes:</p>
+	<p class="mono">
+		<span class="url">YOUR_URL_HERE</span>/rss?action=likes&q=twitter
+	</p>
+
+	<p>Query string parameters:</p>
+
+	<p>
+		<span class="mono">action</span>: type of feed from "timeline", "likes",
+		"list", "search"
+	</p>
+
+	<p><span class="mono">q</span>: the query parameter for action.</p>
+	<p>For Timeline and Likes, use user's twitter handle without the @.</p>
+	<p>
+		Lists uses the list ID, which is the numbers at the end of a list URL
+		(<span class="mono">https://twitter.com/i/lists/99924643</span>).
+	</p>
+	<p>
+		For search, follow the guidelines for building a search query
+		<a href="https://developer.twitter.com/en/docs/twitter-api/tweets/search/integrate/build-a-query">here</a>
+		and use percent encoding on the query.
+	</p>
+
+	<p>
+		<span class="mono">filters</span>: Comma seperated list (no space) of
+		either tweets, retweets, replies and attachments, text.
+	</p>
+
+	<p>
+		Attachments include tweets with photos, videos, animated gifs and polls.
+		Text include text-only tweets.
+	</p>
+
+	<p>
+		By default all filters are used. If the attachments and text are omitted,
+		they are included by default.
+	</p>
+	<p>
+		<span class="mono">attachments,text</span> filters MUST include either of
+		<span class="mono">tweets,retweets,replies</span>
+	</p>
+	<hr>
+	</hr>
+	<div id="builder">
+		<p>RSS link builder:</p>
+		<table>
+			<tr>
+				<th>Feed type</th>
+				<th>RSS item title format</th>
+				<th>Tweet type</th>
+				<th>Tweet contents</th>
+			</tr>
+			<tr>
+				<td>
+					<input type="radio" id="user" name="feed_type" value="user" onchange="updateURL()" checked />
+					<label for="user">User timeline</label>
+				</td>
+				<td>
+					<input type="radio" id="plain" name="title" value="plain" onchange="updateURL()" checked />
+					<label for="plain">Plain</label>
+				</td>
+				<td>
+					<input type="checkbox" id="tweets" name="type" value="tweets" onchange="updateURL()" checked />
+					<label for="tweets">Tweets</label>
+				</td>
+
+				<td>
+					<input type="checkbox" id="attachments" name="filters" value="attachments" onchange="updateURL()"
+						checked />
+					<label for="attachments">Attachments</label>
+				</td>
+			</tr>
+			<tr>
+				<td>
+					<input type="radio" id="likes" name="feed_type" value="likes" onchange="updateURL()" />
+					<label for="likes">User's likes</label>
+				</td>
+				<td>
+					<input type="radio" id="short" name="title" value="short" onchange="updateURL()" />
+					<label for="short">Short</label>
+				</td>
+				<td>
+					<input type="checkbox" id="replies" name="type" value="replies" onchange="updateURL()" checked />
+					<label for="replies">Replies</label>
+				</td>
+
+				<td>
+					<input type="checkbox" id="text" name="filters" value="text" onchange="updateURL()" checked />
+					<label for="text">Text only </label>
+				</td>
+			</tr>
+			<tr>
+				<td>
+					<input type="radio" id="list" name="feed_type" value="list" onchange="updateURL()" />
+					<label for="list">Twitter List</label>
+				</td>
+				<td>
+					<input type="radio" id="emojify" name="title" value="emojify" onchange="updateURL()" />
+					<label for="emojify">Emojified</label>
+				</td>
+				<td>
+					<input type="checkbox" id="retweets" name="type" value="retweets" onchange="updateURL()" />
+					<label for="retweets">Retweets</label>
+				</td>
+				<td style="text-align: center"><b>Value</b></td>
+			</tr>
+			<tr>
+				<td>
+					<input type="radio" id="search" name="feed_type" value="search" onchange="updateURL()" />
+					<label for="search">Search Results</label>
+				</td>
+				<td>
+					<input type="radio" id="both" name="title" value="both" onchange="updateURL()" />
+					<label for="both">Short + Emojified</label>
+				</td>
+				<td></td>
+
+				<td>
+					<label for="value">User's @:</label>
+					<input type="text" id="value" name="value" onchange="updateURL()" value="Twitter" />
+				</td>
+			</tr>
+		</table>
+		<p>Your RSS feed link:</p>
+		<a href="/rss?q=Twitter&action=user&filters=tweets,replies,attachments,text" id="rssLink">LINK</a>
+
+		<p>Saved you some copy + paste, you're welcome!</p>
+	</div>
+</body>
+
+</html>
