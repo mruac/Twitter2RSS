@@ -1,6 +1,6 @@
 # Twitter2RSS
  
-A NodeJS app for converting Twitter inputs (User Timeline, Lists, Search and User Likes) into an RSS feed.
+A NodeJS app for converting Twitter inputs (User Timeline, Lists, Search and User Likes) into an RSS feed using Twitter's API v2.
 
 ## Installation & Running the app
 **Prerequisites**
@@ -20,8 +20,9 @@ NodeJS 12 or greater, with npm installed.
 
 2. Change directory to the root of this repo and install the dependencies. Then, run the app.
    ```
-   ./Twitter2RSS$ node install
-    node app.js
+   $ cd ./Twitter2RSS
+   $ node install
+   $ node app.js
    ```
 
 3. Navigate to RSS link builder:
@@ -35,7 +36,7 @@ For debugging purposes, the `/api` endpoint is used for querying Twitter's v2 AP
 localhost:3000/api?2/tweets?ids=1460323737035677698,1519781379172495360,1519781381693353984&expansions=author_id
 ```
 
-Additionally, the `tweet` feed type is available with all the other feed options included for testing how a tweet is displayed in a feed reader. Authentication with `key` parameter _is_ required.
+Additionally, the `tweet` feed type is available with all the other feed options included to test how a tweet is displayed in a feed reader. Authentication with `key` parameter _is_ required.
 ```
 localhost:3000/rss?q=1460323737035677698,1519781379172495360,1519781381693353984&action=tweet&filters=tweets,replies,retweets,attachments,text&title=plain
 ```

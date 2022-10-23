@@ -4,7 +4,7 @@ require('dotenv').config();
 
 let oauth = getOAuth();
 
-const expansions = "expansions=attachments.poll_ids,attachments.media_keys,author_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id&media.fields=media_key,preview_image_url,type,url,alt_text,variants&poll.fields=id,options&tweet.fields=attachments,author_id,conversation_id,created_at,entities,id,in_reply_to_user_id,referenced_tweets,text";
+const expansions = "expansions=attachments.poll_ids,attachments.media_keys,author_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id&media.fields=media_key,preview_image_url,type,url,alt_text,variants&poll.fields=id,options&tweet.fields=attachments,author_id,conversation_id,created_at,entities,id,in_reply_to_user_id,referenced_tweets,text&user.fields=protected";
 
 module.exports = {
 
@@ -268,7 +268,7 @@ function v2(type, ...params) {
 
     function linkifyText(tweet) {
         var text = tweet.text;
-        text = escapeHtml(text);
+        // text = escapeHtml(text); //NOTE: not required for v2?
         text = text.replace(/\n/gm, ` <br/>\n`);
         if (tweet.entities != undefined) {
             if (tweet.entities.urls != undefined) {
@@ -507,6 +507,7 @@ function v2(type, ...params) {
 
     function titleBuilder(tweet) {
         let title = "";
+        if (tweet.locked){title += "🔒";}
         title += `@${tweet.user} ${tweet.type.past_tense}`; //@User1 tweet typed
         if (tweet.referenced_tweets != undefined) { //+ @User2's tweet type
             if (tweet.referenced_tweets["retweeted"]) { title += ` @${tweet.referenced_tweets["retweeted"].user}'s ${tweet.referenced_tweets["retweeted"].type.present_tense}`; }
@@ -557,6 +558,7 @@ function get_tweet(tweet, data, customTitle, get_referenced) {
     res["id"] = tweet.id;
     res["created_time"] = new Date(tweet.created_at).toUTCString();
     res["user"] = v2("includes", data.includes, "users", tweet.author_id); //creator of tweet
+    res["locked"] = data.includes["users"].filter(function (user) {return user.id == tweet.author_id})[0].protected;
     res["type"] = v2("type", tweet, customTitle); //{ "past_tense": "tweeted", "present_tense": "tweet" }
     res["body"] = v2("linkify", tweet);
     res["attachments"] = v2("getAttachments", data.includes, tweet);

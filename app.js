@@ -21,6 +21,7 @@ const server = http.createServer(async (req, res) => {
         res.end();
       }
     ).catch(function (e) {
+      console.log(e);
       res.writeHead(e.statusCode, {
         'Content-Type': 'application/json; charset=UTF-8'
       });
@@ -47,6 +48,7 @@ const server = http.createServer(async (req, res) => {
         try {
           output = await toRSS.fetchRSS(new URLSearchParams(request.search));
         } catch (e) {
+          console.log(e);
           res.writeHead(e.statusCode, {
             'Content-Type': 'application/json; charset=UTF-8'
           });
