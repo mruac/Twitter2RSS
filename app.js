@@ -3,15 +3,15 @@ const fs = require('fs');
 const toRSS = require('./twitterv2_node.js');
 require('dotenv').config();
 
-const hostname = '192.168.0.101';
 const port = process.env.PORT || 3000;
 
 const server = http.createServer(async (req, res) => {
+
   let request = new URL(req.url, `http://${req.headers.host}`);
   console.log(request.toString());
 
   //FOR DEBUGGING
-  if (request.pathname == "/api") {
+  if (request.pathname == "/api" && process.env.DEBUG === "true") {
     let query = decodeURIComponent(request.searchParams.toString());
     if (query.endsWith("=")) { query = query.substring(0, query.length - 1) }
     toRSS.getData(`https://api.twitter.com/${query}`).then(
@@ -22,10 +22,11 @@ const server = http.createServer(async (req, res) => {
       }
     ).catch(function (e) {
       console.log(e);
+      if(e.statusCode != undefined){e.statusCode = 502;}
       res.writeHead(e.statusCode, {
         'Content-Type': 'application/json; charset=UTF-8'
       });
-      res.write(JSON.stringify(JSON.parse(e.data), null, 3));
+      res.write(JSON.stringify(JSON.parse(e), null, 3));
       res.end();
     });
     return;
@@ -49,10 +50,11 @@ const server = http.createServer(async (req, res) => {
           output = await toRSS.fetchRSS(new URLSearchParams(request.search));
         } catch (e) {
           console.log(e);
+          if(e.statusCode != undefined){e.statusCode = 502;}
           res.writeHead(e.statusCode, {
             'Content-Type': 'application/json; charset=UTF-8'
           });
-          res.write(JSON.stringify(JSON.parse(e.data), null, 3));
+          res.write(JSON.stringify(JSON.parse(e), null, 3));
           res.end();
           break;
         }
@@ -83,7 +85,7 @@ const server = http.createServer(async (req, res) => {
           res.end();
         } else {
           res.writeHead(200, {
-            'Content-Type': 'text/plain; charset=UTF-8'
+            'Content-Type': 'text/html; charset=UTF-8'
           });
           res.write(data);
           res.end();
@@ -100,6 +102,6 @@ const server = http.createServer(async (req, res) => {
   return;
 });
 
-server.listen(port, hostname, () => {
-  console.log(`Server running at http://${hostname}:${port}/`);
+server.listen(port, () => {
+  console.log(`Server running at localhost:${port}`);
 });

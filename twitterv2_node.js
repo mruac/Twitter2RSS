@@ -1,14 +1,19 @@
 const OAuth = require('oauth');
 const { promisify } = require('util');
 require('dotenv').config();
+const storage = require('node-persist');
+
+
 
 let oauth = getOAuth();
 
 const expansions = "expansions=attachments.poll_ids,attachments.media_keys,author_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id&media.fields=media_key,preview_image_url,type,url,alt_text,variants&poll.fields=id,options&tweet.fields=attachments,author_id,conversation_id,created_at,entities,id,in_reply_to_user_id,referenced_tweets,text&user.fields=protected";
+const CACHE_TIME = 900; //in seconds - prevents calling getData() excessively and reaching rate limits too soon. Adjust as needed. 
 
 module.exports = {
 
     fetchRSS: async function (urlParam) { //URLSearchParams(request.search)
+        await storage.init( /* options ... */);
 
         let action = urlParam.get("action"), //timeline, list, search, likes, tweet
             query = urlParam.get("q"),
@@ -58,62 +63,67 @@ module.exports = {
         }
         filterString = filterString.join(", ");
 
-        let url,
-            title,
-            permalink,
-            description;
+        let cacheId = Buffer.from(urlParam.toString()).toString('base64');
+        let rss = await storage.getItem(cacheId);
 
-        switch (action) {
-            case "tweet": //comma seperated tweet IDs
-                url = `https://api.twitter.com/2/tweets?ids=${query}`;
-                permalink = "";
-                title = "Tweet(s)";
-                description = "Tweet(s) of: " + query;
-                break;
-            case "timeline":
-                query = userLookup(query).data
-                url = "https://api.twitter.com/2/users/" + query.id;
-                permalink = "https://twitter.com/" + query.username;
-                title = "@" + query.username + "'s Updates with " + filterString;
-                description = "Updates from @" + query.username;
-                break;
-            case "list":
-                url = `https://api.twitter.com/2/lists/${query}/tweets?max_results=100`;
-                permalink = "https://twitter.com/i/lists/" + query;
-                var listData = await getData(`https://api.twitter.com/2/lists/${query}?expansions=owner_id&user.fields=username`);
-                title = "@" + listData.includes.users[0].username + "'s list: " + listData.data.name + " with " + filterString;
-                description = "Updates from @" + listData.includes.users[0].username + "'s list: " + listData.data.name;
-                break;
-            case "search":
-                url = "https://api.twitter.com/2/tweets/search/recent?query=" + encodeURIComponent(query);
-                permalink = "https://twitter.com/search?q=" + encodeURIComponent(query);
-                title = "Twitter Search: " + query + " with " + filterString;
-                description = "Twitter search results for: " + query + ".";
-                break;
-            case "likes": //Renamed from favourites to likes
-                // url = "https://api.twitter.com/1.1/favorites/list.json?screen_name=" + query;
-                permalink = "https://twitter.com/" + query + "/likes/";
-                title = "@" + query + "'s Likes with " + filterString;
-                description = "Tweets that @" + query + " liked.";
-                break;
+        if (!rss) {  // //if rss is NOT already cached, run a whole bunch of getData() and build the rss feed
+            try {
+
+                let url,
+                    title,
+                    permalink,
+                    description;
+
+                switch (action) {
+                    case "tweet": //comma seperated tweet IDs
+                        url = `https://api.twitter.com/2/tweets?ids=${query}`;
+                        permalink = "";
+                        title = "Tweet(s)";
+                        description = "Tweet(s) of: " + query;
+                        break;
+                    case "timeline":
+                        query = userLookup(query).data
+                        url = "https://api.twitter.com/2/users/" + query.id;
+                        permalink = "https://twitter.com/" + query.username;
+                        title = "@" + query.username + "'s Updates with " + filterString;
+                        description = "Updates from @" + query.username;
+                        break;
+                    case "list":
+                        url = `https://api.twitter.com/2/lists/${query}/tweets?max_results=100`;
+                        permalink = "https://twitter.com/i/lists/" + query;
+                        var listData = await getData(`https://api.twitter.com/2/lists/${query}?expansions=owner_id&user.fields=username`);
+                        title = "@" + listData.includes.users[0].username + "'s list: " + listData.data.name + " with " + filterString;
+                        description = "Updates from @" + listData.includes.users[0].username + "'s list: " + listData.data.name;
+                        break;
+                    case "search":
+                        url = "https://api.twitter.com/2/tweets/search/recent?query=" + encodeURIComponent(query);
+                        permalink = "https://twitter.com/search?q=" + encodeURIComponent(query);
+                        title = "Twitter Search: " + query + " with " + filterString;
+                        description = "Twitter search results for: " + query + ".";
+                        break;
+                    case "likes": //Renamed from favourites to likes
+                        // url = "https://api.twitter.com/1.1/favorites/list.json?screen_name=" + query;
+                        permalink = "https://twitter.com/" + query + "/likes/";
+                        title = "@" + query + "'s Likes with " + filterString;
+                        description = "Tweets that @" + query + " liked.";
+                        break;
+                }
+
+                rss = await rssBuilder(url, title, permalink, description, action, filters, customTitle);
+
+            } catch (e) {
+                console.log("Err: ");
+                console.log(e);
+                return Promise.reject(e);
+            }
+
+            await storage.setItem(cacheId, rss, { ttl: 1000 * CACHE_TIME });
+            console.log("Saved: " + cacheId);
+        } else {
+            console.log("Loaded: " + cacheId);
         }
 
-        /*     // //if rss is not cached, rss = false.
-            var cache = CacheService.getScriptCache(),
-                cacheId = Utilities.base64Encode(url + e.queryString),
-                rss = cache.get(cacheId);
-        
-            // //if rss is NOT already cached
-            if (!rss) {
-                try {
-                } catch (e) {
-                    return errorHandler(e);
-                }
-                cache.put(cacheId, rss, CACHE_TIME);
-            }
-            return rss;
-         */
-        return rssBuilder(url, title, permalink, description, action, filters, customTitle);
+        return rss;
 
     },
 
@@ -327,8 +337,8 @@ function v2(type, ...params) {
                             res = `Video: <img src="${media.preview_image_url}">`;
                         } else {
                             res += `<video controls="controls" poster="${media.preview_image_url}"`;
-                            if (media.type == "animated_gif") { res += ` loop="loop" `; }
-                            res += `src="${videoURL}"></video>`;
+                            if (media.type == "animated_gif") { res += ` loop="loop"`; }
+                            res += ` src="${videoURL}"></video>`;
                         }
                         break;
                 }
@@ -507,7 +517,7 @@ function v2(type, ...params) {
 
     function titleBuilder(tweet) {
         let title = "";
-        if (tweet.locked){title += "🔒";}
+        if (tweet.locked) { title += "🔒"; }
         title += `@${tweet.user} ${tweet.type.past_tense}`; //@User1 tweet typed
         if (tweet.referenced_tweets != undefined) { //+ @User2's tweet type
             if (tweet.referenced_tweets["retweeted"]) { title += ` @${tweet.referenced_tweets["retweeted"].user}'s ${tweet.referenced_tweets["retweeted"].type.present_tense}`; }
@@ -546,6 +556,7 @@ function v2(type, ...params) {
 }
 
 function get_tweet(tweet, data, customTitle, get_referenced) {
+    if (tweet === undefined) { return undefined; }
     let res = {};
 
     if (get_referenced) {
@@ -558,7 +569,7 @@ function get_tweet(tweet, data, customTitle, get_referenced) {
     res["id"] = tweet.id;
     res["created_time"] = new Date(tweet.created_at).toUTCString();
     res["user"] = v2("includes", data.includes, "users", tweet.author_id); //creator of tweet
-    res["locked"] = data.includes["users"].filter(function (user) {return user.id == tweet.author_id})[0].protected;
+    res["locked"] = data.includes["users"].filter(function (user) { return user.id == tweet.author_id })[0].protected;
     res["type"] = v2("type", tweet, customTitle); //{ "past_tense": "tweeted", "present_tense": "tweet" }
     res["body"] = v2("linkify", tweet);
     res["attachments"] = v2("getAttachments", data.includes, tweet);
@@ -598,24 +609,23 @@ async function extendData(initialResponse) {
         }
     });
 
-    if (ids.length > 0) {
+    if (ids.size > 0) {
         let secondResponse = await getData(`https://api.twitter.com/2/tweets?ids=${Array.from(ids).toString()}&${expansions}`);
         if (secondResponse.includes != undefined) {
             for (let i in secondResponse.includes) { //"users", "tweets", "media", "polls"
-                if (initialResponse.includes?.[i]) { //if includes exists in initialResponse
+                if (initialResponse.includes[i] != undefined) { //if includes exists in initialResponse
                     if (i === "tweets") {
                         initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.data);
                     }
-                    if (secondResponse.includes?.[i]) {
+                    if (secondResponse.includes[i] != undefined) {
                         initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
                     }
                 } else {
+                    initialResponse.includes[i] = [];
                     if (i === "tweets") {
-                        initialResponse.includes[i] = secondResponse.data;
+                        initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.data);
                     }
-                    if (secondResponse.includes?.[i]) {
-                        initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
-                    }
+                    initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
                 }
             }
         }
