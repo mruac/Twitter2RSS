@@ -54,7 +54,7 @@ For debugging purposes, the `/api` endpoint is used for querying Twitter's API. 
 localhost:3000/api?2/tweets?ids=1460323737035677698,1519781379172495360,1519781381693353984&expansions=author_id
 ```
 
-Additionally, the `tweet` feed type is available with all the other feed options included to test how a tweet is displayed in a feed reader. This is considered a feedtype and so does not need to be enabled via the `DEBUG` environment variable, and as such authentication with `key` parameter _is_ required.
+Additionally, the `tweet` feed type is available with all the other feed options included to test how a tweet is displayed in a feed reader. Authentication with `key` parameter _is_ required.
 ```
 localhost:3000/rss?q=1460323737035677698,1519781379172495360,1519781381693353984&action=tweet&filters=tweets,replies,retweets,attachments,text&title=plain
 ```
