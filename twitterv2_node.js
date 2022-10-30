@@ -610,25 +610,37 @@ async function extendData(initialResponse) {
     });
 
     if (ids.size > 0) {
-        let secondResponse = await getData(`https://api.twitter.com/2/tweets?ids=${Array.from(ids).toString()}&${expansions}`);
-        if (secondResponse.includes != undefined) {
-            for (let i in secondResponse.includes) { //"users", "tweets", "media", "polls"
-                if (initialResponse.includes[i] != undefined) { //if includes exists in initialResponse
-                    if (i === "tweets") {
-                        initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.data);
-                    }
-                    if (secondResponse.includes[i] != undefined) {
+        var idsArr = [];
+        let i = 0;
+        idsArr[i] = [];
+        ids.forEach((val) => {
+            if (idsArr[i].length > 99) {
+                i++;
+                idsArr[i] = [];
+            }
+            idsArr[i].push(val);
+        });
+        idsArr.forEach(async (v) => {
+            let secondResponse = await getData(`https://api.twitter.com/2/tweets?ids=${v.toString()}&${expansions}`);
+            if (secondResponse.includes != undefined) {
+                for (let i in secondResponse.includes) { //"users", "tweets", "media", "polls"
+                    if (initialResponse.includes[i] != undefined) { //if includes exists in initialResponse
+                        if (i === "tweets") {
+                            initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.data);
+                        }
+                        if (secondResponse.includes[i] != undefined) {
+                            initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
+                        }
+                    } else {
+                        initialResponse.includes[i] = [];
+                        if (i === "tweets") {
+                            initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.data);
+                        }
                         initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
                     }
-                } else {
-                    initialResponse.includes[i] = [];
-                    if (i === "tweets") {
-                        initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.data);
-                    }
-                    initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
                 }
             }
-        }
+        });
     }
     return initialResponse;
 }

@@ -26,8 +26,9 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(e.statusCode, {
         'Content-Type': 'application/json; charset=UTF-8'
       });
-      res.write(JSON.stringify(JSON.parse(e), null, 3));
-      res.end();
+      if (e instanceof String){res.write(JSON.stringify(JSON.parse(e), null, 3));}
+      else {res.write(JSON.stringify(e, null, 3));}
+            res.end();
     });
     return;
   }
@@ -54,7 +55,8 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(e.statusCode, {
             'Content-Type': 'application/json; charset=UTF-8'
           });
-          res.write(JSON.stringify(JSON.parse(e), null, 3));
+          if (e instanceof String){res.write(JSON.stringify(JSON.parse(e), null, 3));}
+          else {res.write(JSON.stringify(e, null, 3));}
           res.end();
           break;
         }
