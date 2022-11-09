@@ -49,7 +49,7 @@ NodeJS 12 or greater, with npm installed.
 
 ___
 ## Notes
-For debugging purposes, the `/api` endpoint is used for querying Twitter's API. This can be enabled by setting `DEBUG` to `true` in your `.env` file. Authentication with `key` parameter is _not_ required. To use this, put anything _after_ the `api.twitter.com/` as the query parameter. For example:
+For debugging purposes, the `/api` endpoint is used for querying Twitter's API. This can be enabled by setting `DEBUG` to `true` in your `.env` file and uncommenting the code in `app.js`. Authentication with `key` parameter is _not_ required. To use this, put anything _after_ the `api.twitter.com/` as the query parameter. For example:
 ```
 localhost:3000/api?2/tweets?ids=1460323737035677698,1519781379172495360,1519781381693353984&expansions=author_id
 ```
