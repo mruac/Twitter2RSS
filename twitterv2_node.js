@@ -281,7 +281,7 @@ function v2(type, ...params) {
             if (tweet.entities.urls != undefined) {
                 var urls = tweet.entities.urls;
                 for (var i in urls) {
-                    text = text.replace(escapeHtml(urls[i].url), `<a href="${urls[i].expanded_url}">${urls[i].display_url}</a>`);
+                    text = text.replace(escapeHtml(urls[i].url), `<a href="${urls[i].expanded_url}">${urls[i].expanded_url}</a>`);
                 }
             }
         }
@@ -601,6 +601,9 @@ async function extendData(initialResponse) {
                             ids.add(referenced_refTweet.id) //quoted and/or replied_to
                         });
                     }
+                    // if (refTweet?.attachments.media_keys != undefined){
+
+                    // }
                 }
             }
         }
@@ -617,8 +620,9 @@ async function extendData(initialResponse) {
             }
             idsArr[i].push(val);
         });
-        idsArr.forEach(async (v) => {
-            let secondResponse = await getData(`https://api.twitter.com/2/tweets?ids=${v.toString()}&${expansions}`);
+
+        for (let ii = 0; ii < idsArr.length; ii++){
+            const secondResponse = await getData(`https://api.twitter.com/2/tweets?ids=${idsArr[ii].toString()}&${expansions}`);
             if (secondResponse.includes != undefined) {
                 for (let i in secondResponse.includes) { //"users", "tweets", "media", "polls"
                     if (initialResponse.includes[i] != undefined) { //if includes exists in initialResponse
@@ -629,6 +633,7 @@ async function extendData(initialResponse) {
                             initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
                         }
                     } else {
+
                         initialResponse.includes[i] = [];
                         if (i === "tweets") {
                             initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.data);
@@ -636,9 +641,10 @@ async function extendData(initialResponse) {
                         initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
                     }
                 }
-            }
-        });
+            }   
+        }
     }
+
     return initialResponse;
 }
 
@@ -654,7 +660,6 @@ function getOAuth() {
 
 async function getData(url) {
 
-    // console.log("getData: " + url);
     const get = promisify(oauth.get.bind(oauth));
 
     let body;
@@ -669,5 +674,4 @@ async function getData(url) {
         return Promise.reject(e);
     }
     return JSON.parse(body);
-    // var response = await getData(url);
 }
