@@ -67,55 +67,55 @@ module.exports = {
         let rss = await storage.getItem(cacheId);
 
         if (!rss) {  // //if rss is NOT already cached, run a whole bunch of getData() and build the rss feed
-            try {
+        try {
 
-                let url,
-                    title,
-                    permalink,
-                    description;
+            let url,
+                title,
+                permalink,
+                description;
 
-                switch (action) {
-                    case "tweet": //comma seperated tweet IDs
-                        url = `https://api.twitter.com/2/tweets?ids=${query}`;
-                        permalink = "";
-                        title = "Tweet(s)";
-                        description = "Tweet(s) of: " + query;
-                        break;
-                    case "timeline":
-                        query = userLookup(query).data
-                        url = "https://api.twitter.com/2/users/" + query.id;
-                        permalink = "https://twitter.com/" + query.username;
-                        title = "@" + query.username + "'s Updates with " + filterString;
-                        description = "Updates from @" + query.username;
-                        break;
-                    case "list":
-                        url = `https://api.twitter.com/2/lists/${query}/tweets?max_results=100`;
-                        permalink = "https://twitter.com/i/lists/" + query;
-                        var listData = await getData(`https://api.twitter.com/2/lists/${query}?expansions=owner_id&user.fields=username`);
-                        title = "@" + listData.includes.users[0].username + "'s list: " + listData.data.name + " with " + filterString;
-                        description = "Updates from @" + listData.includes.users[0].username + "'s list: " + listData.data.name;
-                        break;
-                    case "search":
-                        url = "https://api.twitter.com/2/tweets/search/recent?query=" + encodeURIComponent(query);
-                        permalink = "https://twitter.com/search?q=" + encodeURIComponent(query);
-                        title = "Twitter Search: " + query + " with " + filterString;
-                        description = "Twitter search results for: " + query + ".";
-                        break;
-                    case "likes": //Renamed from favourites to likes
-                        // url = "https://api.twitter.com/1.1/favorites/list.json?screen_name=" + query;
-                        permalink = "https://twitter.com/" + query + "/likes/";
-                        title = "@" + query + "'s Likes with " + filterString;
-                        description = "Tweets that @" + query + " liked.";
-                        break;
-                }
-
-                rss = await rssBuilder(url, title, permalink, description, action, filters, customTitle);
-
-            } catch (e) {
-                console.log("Err: ");
-                console.log(e);
-                return Promise.reject(e);
+            switch (action) {
+                case "tweet": //comma seperated tweet IDs
+                    url = `https://api.twitter.com/2/tweets?ids=${query}`;
+                    permalink = "";
+                    title = "Tweet(s)";
+                    description = "Tweet(s) of: " + query;
+                    break;
+                case "timeline":
+                    query = userLookup(query).data
+                    url = "https://api.twitter.com/2/users/" + query.id;
+                    permalink = "https://twitter.com/" + query.username;
+                    title = "@" + query.username + "'s Updates with " + filterString;
+                    description = "Updates from @" + query.username;
+                    break;
+                case "list":
+                    url = `https://api.twitter.com/2/lists/${query}/tweets?max_results=100`;
+                    permalink = "https://twitter.com/i/lists/" + query;
+                    var listData = await getData(`https://api.twitter.com/2/lists/${query}?expansions=owner_id&user.fields=username`);
+                    title = "@" + listData.includes.users[0].username + "'s list: " + listData.data.name + " with " + filterString;
+                    description = "Updates from @" + listData.includes.users[0].username + "'s list: " + listData.data.name;
+                    break;
+                case "search":
+                    url = "https://api.twitter.com/2/tweets/search/recent?query=" + encodeURIComponent(query);
+                    permalink = "https://twitter.com/search?q=" + encodeURIComponent(query);
+                    title = "Twitter Search: " + query + " with " + filterString;
+                    description = "Twitter search results for: " + query + ".";
+                    break;
+                case "likes": //Renamed from favourites to likes
+                    // url = "https://api.twitter.com/1.1/favorites/list.json?screen_name=" + query;
+                    permalink = "https://twitter.com/" + query + "/likes/";
+                    title = "@" + query + "'s Likes with " + filterString;
+                    description = "Tweets that @" + query + " liked.";
+                    break;
             }
+
+            rss = await rssBuilder(url, title, permalink, description, action, filters, customTitle);
+
+        } catch (e) {
+            console.log("Err: ");
+            console.log(e);
+            return Promise.reject(e);
+        }
 
             await storage.setItem(cacheId, rss, { ttl: 1000 * CACHE_TIME });
             console.log("Saved: " + cacheId);
@@ -257,34 +257,20 @@ function v2(type, ...params) {
         case "descriptionBuilder": return descriptionBuilder.apply(null, params);
     }
 
-    function escapeHtml(string) {
-        //convert text to html entities to prevent feedreader parsing html from tweet contents
-        //https://stackoverflow.com/a/12034334/5791312
-
-        var entityMap = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;',
-            '/': '&#x2F;',
-            '`': '&#x60;',
-            '=': '&#x3D;',
-            '[': '&#91;',
-            ']': '&#93;'
-        };
-        return String(string).replace(/[&<>"'`=\/]/g, function (s) { return entityMap[s]; });
-    }
-
     function linkifyText(tweet) {
         var text = tweet.text;
-        // text = escapeHtml(text); //NOTE: not required for v2?
         text = text.replace(/\n/gm, ` <br/>\n`);
         if (tweet.entities != undefined) {
             if (tweet.entities.urls != undefined) {
                 var urls = tweet.entities.urls;
                 for (var i in urls) {
-                    text = text.replace(escapeHtml(urls[i].url), `<a href="${urls[i].expanded_url}">${urls[i].display_url}</a>`);
+                    if (urls[i].expanded_url != undefined) {
+                        if (urls[i].expanded_url.search(/twitter.com\/.*?\/status\/\d+\/(photo|video)\/\d+/g) > -1) {
+                            text = text.replace(urls[i].url, ""); //removes twitter.com/i/status/xxx/photo/1 at the end of each tweet with media
+                        } else {
+                            text = text.replace(urls[i].url, `<a href="${urls[i].expanded_url}">${urls[i].expanded_url}</a>`);
+                        }
+                    }
                 }
             }
         }
@@ -620,8 +606,9 @@ async function extendData(initialResponse) {
             }
             idsArr[i].push(val);
         });
-        idsArr.forEach(async (v) => {
-            let secondResponse = await getData(`https://api.twitter.com/2/tweets?ids=${v.toString()}&${expansions}`);
+
+        for (let ii = 0; ii < idsArr.length; ii++){
+            const secondResponse = await getData(`https://api.twitter.com/2/tweets?ids=${idsArr[ii].toString()}&${expansions}`);
             if (secondResponse.includes != undefined) {
                 for (let i in secondResponse.includes) { //"users", "tweets", "media", "polls"
                     if (initialResponse.includes[i] != undefined) { //if includes exists in initialResponse
@@ -632,6 +619,7 @@ async function extendData(initialResponse) {
                             initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.includes[i]);
                         }
                     } else {
+
                         initialResponse.includes[i] = [];
                         if (i === "tweets") {
                             initialResponse.includes[i] = initialResponse.includes[i].concat(secondResponse.data);
@@ -640,8 +628,9 @@ async function extendData(initialResponse) {
                     }
                 }
             }
-        });
+        }
     }
+
     return initialResponse;
 }
 
