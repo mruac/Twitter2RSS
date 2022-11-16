@@ -5,10 +5,9 @@ require('dotenv').config();
 
 const port = process.env.PORT || 3000;
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => {
 
   let request = new URL(req.url, `http://${req.headers.host}`);
-  console.log(request.toString());
 
   //FOR DEBUGGING
   // if (request.pathname == "/api" && process.env.DEBUG === "true") {
@@ -46,32 +45,54 @@ const server = http.createServer(async (req, res) => {
   switch (request.pathname) {
     case "/rss":
       if (request.searchParams.has("action")) { // if query params available, excluding "key" param
-        let output;
-        try {
-          output = await toRSS.fetchRSS(new URLSearchParams(request.search));
-        } catch (e) {
+        let URLparams = new URLSearchParams(request.search);
+        if (URLparams.get("filters") === undefined) { URLparams.set("filters", "tweets,retweets,replies,attachments,text"); }
+        if (URLparams.get("title") === undefined) { URLparams.set("title", "plain"); }
+        toRSS.fetchRSS(URLparams).then((output) => {
+          if (output.startsWith(`<?xml`)) { //if rss output
+            // //TEST RSS OUTPUT
+            // if (output.match(/<link>.*\/(\d*)<\/link>/)[1] === URLparams.get("q")) {
+            //   res.writeHead(404, {
+            //     'Content-Type': 'text/plain; charset=UTF-8'
+            //   });
+            //   res.write("404: listID (" + URLparams.get("q") + ") did not match!");
+            //   res.end();
+            //   return;
+            // }
+            // let outputFilters = output.match(/<title>.* with (.*)<\/title>/)[1].split(",").map((v)=>{return v.trim().toLowerCase()});
+
+            // if(URLparams.get("filters").split(",").every((v)=>{
+            //   return outputFilters.indexOf(v) > -1;
+            // })){
+            //   res.writeHead(404, {
+            //     'Content-Type': 'text/plain; charset=UTF-8'
+            //   });
+            //   res.write("404: filters (" + URLparams.get("filters") + ") did not match!");
+            //   res.end();
+            //   return;
+            // }
+            // //END TEST RSS OUTPUT
+            res.writeHead(200, {
+              'Content-Type': 'application/rss+xml; charset=UTF-8'
+            });
+          } else { //if invalid output
+            res.writeHead(404, {
+              'Content-Type': 'text/plain; charset=UTF-8'
+            });
+            res.write("404: ");
+          }
+          res.write(output);
+          res.end();
+        }).catch((e) => {
           console.log(e);
-          if(e.statusCode != undefined){e.statusCode = 502;}
+          if (e.statusCode != undefined) { e.statusCode = 502; }
           res.writeHead(e.statusCode, {
             'Content-Type': 'application/json; charset=UTF-8'
           });
-          if (e instanceof String){res.write(JSON.stringify(JSON.parse(e), null, 3));}
-          else {res.write(JSON.stringify(e, null, 3));}
+          if (e instanceof String) { res.write(JSON.stringify(JSON.parse(e), null, 3)); }
+          else { res.write(JSON.stringify(e, null, 3)); }
           res.end();
-          break;
-        }
-        if (output.startsWith(`<?xml`)) { //if rss output
-          res.writeHead(200, {
-            'Content-Type': 'application/rss+xml; charset=UTF-8'
-          });
-        } else { //if invalid output
-          res.writeHead(404, {
-            'Content-Type': 'text/plain; charset=UTF-8'
-          });
-          res.write("404: ");
-        }
-        res.write(output);
-        res.end();
+        });
       } else {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=UTF-8' });
         res.write("404: Page not found.");
@@ -105,5 +126,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`Server running at localhost:${port}`);
+  console.log(`Server running on port ${port}!`);
 });

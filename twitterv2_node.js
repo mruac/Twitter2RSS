@@ -2,10 +2,11 @@ const OAuth = require('oauth');
 const { promisify } = require('util');
 require('dotenv').config();
 const storage = require('node-persist');
+storage.init( /* options ... */);
 
 
 
-let oauth = getOAuth();
+const oauth = getOAuth();
 
 const expansions = "expansions=attachments.poll_ids,attachments.media_keys,author_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id&media.fields=media_key,preview_image_url,type,url,alt_text,variants&poll.fields=id,options&tweet.fields=attachments,author_id,conversation_id,created_at,entities,id,in_reply_to_user_id,referenced_tweets,text&user.fields=protected";
 const CACHE_TIME = 900; //in seconds - prevents calling getData() excessively and reaching rate limits too soon. Adjust as needed. 
@@ -13,7 +14,6 @@ const CACHE_TIME = 900; //in seconds - prevents calling getData() excessively an
 module.exports = {
 
     fetchRSS: async function (urlParam) { //URLSearchParams(request.search)
-        await storage.init( /* options ... */);
 
         let action = urlParam.get("action"), //timeline, list, search, likes, tweet
             query = urlParam.get("q"),
@@ -21,12 +21,9 @@ module.exports = {
             filterString = [],
             customTitle = urlParam.get("title"); //plain, short, emojify, both
 
-        if (customTitle == undefined) { customTitle = "plain"; }
-
         //"attachments" requires either "tweets","retweets","replies"
         //"text" requires either "tweets","retweets","replies"
         //if "text" and "attachments" are omitted, they are included by default.
-        if (filters == undefined) { filters = "tweets,retweets,replies,attachments,text" }
         filters = filters.split(",").sort();
 
         if (
@@ -49,7 +46,7 @@ module.exports = {
                     filterString.push("Replies");
                     break;
                 case "retweets":
-                    filterString.push("RTs");
+                    filterString.push("Retweets");
                     break;
                 case "attachments":
                     filterString.push("Attachments");
@@ -63,7 +60,7 @@ module.exports = {
         }
         filterString = filterString.join(", ");
 
-        let cacheId = Buffer.from(urlParam.toString()).toString('base64');
+        const cacheId = Buffer.from(urlParam.toString()).toString('base64');
         let rss = await storage.getItem(cacheId);
 
         if (!rss) {  // //if rss is NOT already cached, run a whole bunch of getData() and build the rss feed
@@ -134,7 +131,7 @@ module.exports = {
 }
 
 async function rssBuilder(url, title, permalink, description, action, filters, customTitle) {
-    rss = "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel>\n";
+    let rss = "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel>\n";
     rss += "<title>" + title + "</title>\n";
     rss += "<link>" + permalink + "</link>\n";
     rss += "<description>" + description + "</description>\n";
@@ -590,6 +587,9 @@ async function extendData(initialResponse) {
                             ids.add(referenced_refTweet.id) //quoted and/or replied_to
                         });
                     }
+                    // if (refTweet?.attachments.media_keys != undefined){
+
+                    // }
                 }
             }
         }
@@ -646,7 +646,6 @@ function getOAuth() {
 
 async function getData(url) {
 
-    console.log("getData: " + url);
     const get = promisify(oauth.get.bind(oauth));
 
     let body;
@@ -661,5 +660,4 @@ async function getData(url) {
         return Promise.reject(e);
     }
     return JSON.parse(body);
-    // var response = await getData(url);
 }
