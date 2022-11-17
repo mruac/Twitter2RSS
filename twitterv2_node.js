@@ -155,7 +155,11 @@ async function rssBuilder(url, title, permalink, description, action, filters, c
                 rss += `    <title>${v2("titleBuilder", tweetObject)}</title>\n`;
                 rss += `    <pubDate>${tweetObject.created_time}</pubDate>\n`;
                 rss += `    <guid>https://twitter.com/${tweetObject.user}/status/${tweetObject.id}</guid>\n`;
-                rss += `    <description><![CDATA[\n${v2("descriptionBuilder", tweetObject, response.includes)}\n    ]]></description>\n`;
+                rss += `    <description><![CDATA[\n`;
+        //TODO: rss += `<a href="https://twitter.com/intent/tweet?in_reply_to=${tweetObject.id}">💬</a> | `
+        //TODO: rss += `<a href="https://twitter.com/intent/retweet?tweet_id=${tweetObject.id}">🔃</a> | `
+        //TODO: rss += `<a href="https://twitter.com/intent/like?tweet_id=${tweetObject.id}">♥</a> | `
+        rss += `${v2("descriptionBuilder", tweetObject, response.includes)}\n    ]]></description>\n`;
                 rss += "</item>\n";
             });
             break;
