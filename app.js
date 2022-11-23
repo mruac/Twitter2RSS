@@ -46,8 +46,8 @@ const server = http.createServer((req, res) => {
     case "/rss":
       if (request.searchParams.has("action")) { // if query params available, excluding "key" param
         let URLparams = new URLSearchParams(request.search);
-        if (URLparams.get("filters") === undefined) { URLparams.set("filters", "tweets,retweets,replies,attachments,text"); }
-        if (URLparams.get("title") === undefined) { URLparams.set("title", "plain"); }
+        if (URLparams.get("filters") === "" || URLparams.get("filters") === null) { URLparams.set("filters", "tweets,retweets,replies,attachments,text"); }
+        if (URLparams.get("title") === "" || URLparams.get("title") === null) { URLparams.set("title", "plain"); }
         toRSS.fetchRSS(URLparams).then((output) => {
           if (output.startsWith(`<?xml`)) { //if rss output
             // //TEST RSS OUTPUT

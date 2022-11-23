@@ -156,10 +156,11 @@ async function rssBuilder(url, title, permalink, description, action, filters, c
                 rss += `    <pubDate>${tweetObject.created_time}</pubDate>\n`;
                 rss += `    <guid>https://twitter.com/${tweetObject.user}/status/${tweetObject.id}</guid>\n`;
                 rss += `    <description><![CDATA[\n`;
-        //TODO: rss += `<a href="https://twitter.com/intent/tweet?in_reply_to=${tweetObject.id}">💬</a> | `
-        //TODO: rss += `<a href="https://twitter.com/intent/retweet?tweet_id=${tweetObject.id}">🔃</a> | `
-        //TODO: rss += `<a href="https://twitter.com/intent/like?tweet_id=${tweetObject.id}">♥</a> | `
-        rss += `${v2("descriptionBuilder", tweetObject, response.includes)}\n    ]]></description>\n`;
+                rss += `${v2("descriptionBuilder", tweetObject, response.includes)}\n`;
+                rss += `<br>[ <a href="https://twitter.com/intent/tweet?in_reply_to=${tweetObject.id}">💬</a> | `;
+                rss += `<a href="https://twitter.com/intent/retweet?tweet_id=${tweetObject.id}">🔃</a> | `;
+                rss += `<a href="https://twitter.com/intent/like?tweet_id=${tweetObject.id}">♥</a> ]\n`;
+                rss += `    ]]></description>\n`;
                 rss += "</item>\n";
             });
             break;
@@ -260,7 +261,7 @@ function v2(type, ...params) {
 
     function linkifyText(tweet) {
         var text = tweet.text;
-        text = text.replace(/\n/gm, ` <br/>\n`);
+        text = text.replace(/\n/gm, ` <br>\n`);
         if (tweet.entities != undefined) {
             if (tweet.entities.urls != undefined) {
                 var urls = tweet.entities.urls;
@@ -519,6 +520,19 @@ function v2(type, ...params) {
         if (tweet.referenced_tweets?.["retweeted"]) {
             tweet = tweet.referenced_tweets["retweeted"]; //override current tweet with retweeted tweet
         }
+
+        if (tweet.referenced_tweets?.["replied_to"]) {
+            if (tweet.referenced_tweets?.quoted) {
+                res += `<h3><a href="https://twitter.com/${tweet.user}/status/${tweet.id}">@${tweet.user} Replied with quote:</a></h3>\n`;
+            } else {
+                res += `<h3><a href="https://twitter.com/${tweet.user}/status/${tweet.id}">@${tweet.user} Replied:</a></h3>\n`;
+            }
+        } else if (tweet.referenced_tweets?.quoted) {
+            res += `<h3><a href="https://twitter.com/${tweet.user}/status/${tweet.id}">@${tweet.user} Quoted:</a></h3>\n`;
+        } else {
+            res += `<h3><a href="https://twitter.com/${tweet.user}/status/${tweet.id}">@${tweet.user} Tweeted:</a></h3>\n`;
+        }
+
         res += tweet.body + "\n" + tweet.attachments;
 
         if (tweet.referenced_tweets?.["quoted"]) { //include QT if included in plain tweet / tweet reply
@@ -611,7 +625,7 @@ async function extendData(initialResponse) {
             idsArr[i].push(val);
         });
 
-        for (let ii = 0; ii < idsArr.length; ii++){
+        for (let ii = 0; ii < idsArr.length; ii++) {
             const secondResponse = await getData(`https://api.twitter.com/2/tweets?ids=${idsArr[ii].toString()}&${expansions}`);
             if (secondResponse.includes != undefined) {
                 for (let i in secondResponse.includes) { //"users", "tweets", "media", "polls"
