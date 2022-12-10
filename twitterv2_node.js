@@ -605,9 +605,13 @@ async function extendData(initialResponse) {
                             ids.add(referenced_refTweet.id) //quoted and/or replied_to
                         });
                     }
-                    // if (refTweet?.attachments.media_keys != undefined){
-
-                    // }
+                    if (tweet.referenced_tweets[i].type === "retweeted" && tweet.attachments?.media_keys != undefined) {
+                        //remove any associated media in includes["media"]
+                            initialResponse.includes["media"] = initialResponse.includes["media"].reduce(
+                                function (pre, curr) { if (tweet.attachments.media_keys.indexOf(curr.id) > -1 ) { pre.push(curr) }; return pre; },
+                                []);
+                           
+                    }
                 }
             }
         }
