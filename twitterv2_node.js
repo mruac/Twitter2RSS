@@ -37,6 +37,7 @@ module.exports = {
             filters.push("text", "attachments");
         }
 
+        //FIXME: exclude=retweets,replies query param now available
         for (let i in filters) {
             switch (filters[i]) {
                 case "tweets":
@@ -64,55 +65,63 @@ module.exports = {
         let rss = await storage.getItem(cacheId);
 
         if (!rss) {  // //if rss is NOT already cached, run a whole bunch of getData() and build the rss feed
-        try {
+            try {
 
-            let url,
-                title,
-                permalink,
-                description;
+                let url,
+                    title,
+                    permalink,
+                    description;
 
-            switch (action) {
-                case "tweet": //comma seperated tweet IDs
-                    url = `https://api.twitter.com/2/tweets?ids=${query}`;
-                    permalink = "";
-                    title = "Tweet(s)";
-                    description = "Tweet(s) of: " + query;
-                    break;
-                case "timeline":
-                    query = userLookup(query).data
-                    url = "https://api.twitter.com/2/users/" + query.id;
-                    permalink = "https://twitter.com/" + query.username;
-                    title = "@" + query.username + "'s Updates with " + filterString;
-                    description = "Updates from @" + query.username;
-                    break;
-                case "list":
-                    url = `https://api.twitter.com/2/lists/${query}/tweets?max_results=100`;
-                    permalink = "https://twitter.com/i/lists/" + query;
-                    var listData = await getData(`https://api.twitter.com/2/lists/${query}?expansions=owner_id&user.fields=username`);
-                    title = "@" + listData.includes.users[0].username + "'s list: " + listData.data.name + " with " + filterString;
-                    description = "Updates from @" + listData.includes.users[0].username + "'s list: " + listData.data.name;
-                    break;
-                case "search":
-                    url = "https://api.twitter.com/2/tweets/search/recent?query=" + encodeURIComponent(query);
-                    permalink = "https://twitter.com/search?q=" + encodeURIComponent(query);
-                    title = "Twitter Search: " + query + " with " + filterString;
-                    description = "Twitter search results for: " + query + ".";
-                    break;
-                case "likes": //Renamed from favourites to likes
-                    // url = "https://api.twitter.com/1.1/favorites/list.json?screen_name=" + query;
-                    permalink = "https://twitter.com/" + query + "/likes/";
-                    title = "@" + query + "'s Likes with " + filterString;
-                    description = "Tweets that @" + query + " liked.";
-                    break;
+                switch (action) {
+                    case "tweet": //comma seperated tweet IDs
+                        url = `https://api.twitter.com/2/tweets?ids=${query}`;
+                        permalink = "";
+                        title = "Tweet(s)";
+                        description = "Tweet(s) of: " + query;
+                        break;
+                    case "timeline": //"The `id` query parameter value must be the same as the authenticating user"
+                        query = await getData("https://api.twitter.com/2/users/me").data;
+                        url = `https://api.twitter.com/2/users/${query.id}/timelines/reverse_chronological?max_results=100`
+                        permalink = "https://twitter.com/" + query.username;
+                        title = "@" + query.username + "'s timeline";
+                        description = "@" + query.username + "'s timeline with " + filterString;
+                        break;
+                    case "user":
+                        query = userLookup(query).data;
+                        url = "https://api.twitter.com/2/users/" + query.id + "/tweets?max_results=100";
+                        permalink = "https://twitter.com/" + query.username;
+                        description = "@" + query.username + "'s Updates with " + filterString;
+                        title = "Updates from @" + query.username;
+                        break;
+                    case "list":
+                        url = `https://api.twitter.com/2/lists/${query}/tweets?max_results=100`;
+                        permalink = "https://twitter.com/i/lists/" + query;
+                        var listData = await getData(`https://api.twitter.com/2/lists/${query}?expansions=owner_id&user.fields=username`);
+                        description = "@" + listData.includes.users[0].username + "'s list: " + listData.data.name + " with " + filterString;
+                        title = "Updates from @" + listData.includes.users[0].username + "'s list: " + listData.data.name;
+                        break;
+                    case "search": //limited to 512 characters long
+                        url = "https://api.twitter.com/2/tweets/search/recent?max_results=100&query=" + encodeURIComponent(query);
+                        permalink = "https://twitter.com/search?q=" + encodeURIComponent(query);
+                        title = "Twitter Search: " + query + " with " + filterString;
+                        description = "Twitter search results for: " + query + ".";
+                        break;
+                    case "likes":
+                        query = userLookup(query).data;
+                        url = `https://api.twitter.com/2/users/${query.id}/liked_tweets`;
+                        permalink = "https://twitter.com/" + query.username + "/likes/";
+                        description = "@" + query.username + "'s Likes with " + filterString;
+                        title = "Tweets that @" + query.username + " liked";
+                        break;
+                }
+
+                rss = await rssBuilder(url, title, permalink, description, action, filters, customTitle);
+
+            } catch (e) {
+                console.log("Err: ");
+                console.log(e);
+                return Promise.reject(e);
             }
-
-            rss = await rssBuilder(url, title, permalink, description, action, filters, customTitle);
-
-        } catch (e) {
-            console.log("Err: ");
-            console.log(e);
-            return Promise.reject(e);
-        }
 
             await storage.setItem(cacheId, rss, { ttl: 1000 * CACHE_TIME });
             console.log("Saved: " + cacheId);
@@ -136,111 +145,30 @@ async function rssBuilder(url, title, permalink, description, action, filters, c
     rss += "<link>" + permalink + "</link>\n";
     rss += "<description>" + description + "</description>\n";
 
-    switch (action) {
-        case "tweet":
-        case "list":
-            let response = await getData(`${url}&${expansions}`);
-            //process tweets for any additional getData(tweet[i].*.id) needed.            
-            response = await extendData(response);
-            response.filters = filters;
-            let tweets = response.data;
+    let response = await getData(`${url}&${expansions}`);
+    //process tweets for any additional getData(tweet[i].*.id) needed.            
+    response = await extendData(response);
+    response.filters = filters;
+    let tweets = response.data;
 
-            //build the rss
-            tweets.forEach((tweet) => {
-                if (!v2("checkFilters", tweet, response.filters)) { return; }
-                /* From this tweet object, get other tweet objects if they are referenced. */
-                let tweetObject = get_tweet(tweet, response, customTitle, true);
+    //build the rss
+    tweets.forEach((tweet) => {
+        if (!v2("checkFilters", tweet, response.filters)) { return; }
+        /* From this tweet object, get other tweet objects if they are referenced. */
+        let tweetObject = get_tweet(tweet, response, customTitle, true);
 
-                rss += "<item>\n";
-                rss += `    <title>${v2("titleBuilder", tweetObject)}</title>\n`;
-                rss += `    <pubDate>${tweetObject.created_time}</pubDate>\n`;
-                rss += `    <guid>https://twitter.com/${tweetObject.user}/status/${tweetObject.id}</guid>\n`;
-                rss += `    <description><![CDATA[\n`;
-                rss += `${v2("descriptionBuilder", tweetObject, response.includes)}\n`;
-                rss += `<br>[ <a href="https://twitter.com/intent/tweet?in_reply_to=${tweetObject.id}">💬</a> | `;
-                rss += `<a href="https://twitter.com/intent/retweet?tweet_id=${tweetObject.id}">🔃</a> | `;
-                rss += `<a href="https://twitter.com/intent/like?tweet_id=${tweetObject.id}">♥</a> ]\n`;
-                rss += `    ]]></description>\n`;
-                rss += "</item>\n";
-            });
-            break;
-        case "timeline":
-/*             //TODO: review the options & expansions for this option
-                                        //https://api.twitter.com/2/users/username
-            var response = await getData(`${url}/tweets?${expansions}&max_results=100`);
-            response.filters = filters;
-            var tweets = response.data;
-            for (var i in tweets) {
-                if (!v2("checkFilters", tweets[i], response.filters)) { continue; }
-                rss += "<item>";
-                rss += "<title>" + v2("includes", response.includes, "users", tweets[i].author_id) + " " + v2("title", response, tweets[i]) + "</title>";
-                rss += "<pubDate>" + new Date(tweets[i].created_at).toUTCString() + "</pubDate>";
-                rss += "<guid>https://twitter.com/" + v2("includes", response.includes, "users", tweets[i].author_id) + "/status/" + tweets[i].id + "</guid>";
-                rss += "<description>";
-                //Check if Tweet is RT. If so, get RT'ed Tweet's text instead of using Source Tweet's text.
-                //RT'd text are truncated with … if Source Tweet text >= 140 characters (including "RT @USERNAME: ")
-                if (tweets[i].referenced_tweets != undefined) {
-                    //ignore "retweeted", RTs will be added in v2("getReferenced") later on
-                    if (tweets[i].referenced_tweets[0].type != "retweeted") {
-                        rss += v2("linkify", tweets[i]);
-                    }
-                } else {
-                    rss += v2("linkify", tweets[i]);
-                }
-                rss += v2("getAttachments", response, tweets[i]);
-                rss += await v2("getReferenced", response, tweets[i]);
-                rss += "</description>";
-                rss += "</item>";
-            }
- */            break;
-
-        case "likes":
-/*             //50 tweets compensates for the default 15min RSS fetch interval for when the user goes on a "liking frenzy"
-            //TODO: review the options & expansions for this option
-            var tweets = await getData(url + "&include_rts=true&tweet_mode=extended&count=50");
-            for (var i in tweets) {
-                if (!v1_1("checkFilters", tweets[i], filters)) { continue; }
-                rss += "<item>";
-                //v1.1 API does not have include context tweet information, only the user.
-                rss += "<title>" + tweets[i].user.screen_name + " " + v1_1("title", tweets[i]) + "</title>";
-                rss += "<pubDate>" + new Date(tweets[i].created_at).toUTCString() + "</pubDate>";
-                rss += "<guid>https://twitter.com/" + tweets[i].user.screen_name + "/status/" + tweets[i].id + "</guid>";
-                rss += "<description>";
-                rss += `<hr>`; //liked tweet
-                rss += v1_1("tweetBody", tweets[i]);
-                rss += "</description>";
-                rss += "</item>";
-            }
- */            break;
-        case "search":
-            /*             //TODO: review the options & expansions for this option
-                        var response = await getData(url + "&${expansions}&max_results=100");
-                        response.filters = filters;
-                        var tweets = response.data;
-                        for (var i in tweets) {
-                            if (!v2("checkFilters", tweets[i], response.filters)) { continue; }
-                            rss += "<item>";
-                            rss += "<title>" + v2("includes", response.includes, "users", tweets[i].author_id) + " " + v2("title", response, tweets[i]) + "</title>";
-                            rss += "<pubDate>" + new Date(tweets[i].created_at).toUTCString() + "</pubDate>";
-                            rss += "<guid>https://twitter.com/" + v2("includes", response.includes, "users", tweets[i].author_id) + "/status/" + tweets[i].id + "</guid>";
-                            rss += "<description>";
-                            //Check if Tweet is RT. If so, get RT'ed Tweet's text instead of using Source Tweet's text.
-                            //RT'd text are truncated with … if Source Tweet text >= 140 characters (including "RT @USERNAME: ")
-                            if (tweets[i].referenced_tweets != undefined) {
-                                //ignore "retweeted", RTs will be added in v2("getReferenced") later on
-                                if (tweets[i].referenced_tweets[0].type != "retweeted") {
-                                    rss += v2("linkify", tweets[i]);
-                                }
-                            } else {
-                                rss += v2("linkify", tweets[i]);
-                            }
-                            rss += v2("getAttachments", response, tweets[i]);
-                            rss += await v2("getReferenced", response, tweets[i]);
-                            rss += "</description>";
-                            rss += "</item>";
-                        } */
-            break;
-    }
+        rss += "<item>\n";
+        rss += `    <title>${v2("titleBuilder", tweetObject)}</title>\n`;
+        rss += `    <pubDate>${tweetObject.created_time}</pubDate>\n`;
+        rss += `    <guid>https://twitter.com/${tweetObject.user}/status/${tweetObject.id}</guid>\n`;
+        rss += `    <description><![CDATA[\n`;
+        rss += `${v2("descriptionBuilder", tweetObject, response.includes)}\n`;
+        rss += `<br>[ <a href="https://twitter.com/intent/tweet?in_reply_to=${tweetObject.id}">💬</a> | `;
+        rss += `<a href="https://twitter.com/intent/retweet?tweet_id=${tweetObject.id}">🔃</a> | `;
+        rss += `<a href="https://twitter.com/intent/like?tweet_id=${tweetObject.id}">♥</a> ]\n`;
+        rss += `    ]]></description>\n`;
+        rss += "</item>\n";
+    });
 
     rss += "</channel></rss>";
     return rss;
@@ -605,12 +533,16 @@ async function extendData(initialResponse) {
                             ids.add(referenced_refTweet.id) //quoted and/or replied_to
                         });
                     }
-                    if (tweet.referenced_tweets[i].type === "retweeted" && tweet.attachments?.media_keys != undefined) {
+                    if (tweet.referenced_tweets[i].type === "retweeted") {
                         //remove any associated media in includes["media"]
-                            initialResponse.includes["media"] = initialResponse.includes["media"].reduce(
-                                function (pre, curr) { if (tweet.attachments.media_keys.indexOf(curr.id) === -1 ) { pre.push(curr) }; return pre; },
-                                []);
-                           
+                        if (tweet.attachments?.media_keys != undefined) {
+                            for (let media_i in tweet.attachments.media_keys) {
+                                initialResponse.includes["media"].splice(
+                                    initialResponse.includes["media"].findIndex((element) => { return element.id === tweet.attachments.media_keys[media_i] }),
+                                    1
+                                );
+                            }
+                        }
                     }
                 }
             }
