@@ -9,7 +9,7 @@ storage.init( /* options ... */);
 const oauth = getOAuth();
 
 const expansions = "expansions=attachments.poll_ids,attachments.media_keys,author_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id&media.fields=media_key,preview_image_url,type,url,alt_text,variants&poll.fields=id,options&tweet.fields=attachments,author_id,conversation_id,created_at,entities,id,in_reply_to_user_id,referenced_tweets,text&user.fields=protected";
-const CACHE_TIME = 900; //in seconds - prevents calling getData() excessively and reaching rate limits too soon. Adjust as needed. 
+const CACHE_TIME = 1; //in seconds - prevents calling getData() excessively and reaching rate limits too soon. Adjust as needed. 
 
 module.exports = {
 
@@ -537,10 +537,10 @@ async function extendData(initialResponse) {
                         //remove any associated media in includes["media"]
                         if (tweet.attachments?.media_keys != undefined) {
                             for (let media_i in tweet.attachments.media_keys) {
-                                initialResponse.includes["media"].splice(
-                                    initialResponse.includes["media"].findIndex((element) => { return element.id === tweet.attachments.media_keys[media_i] }),
-                                    1
-                                );
+                                const foundIndex = initialResponse.includes["media"].findIndex((element) => { return element.id === tweet.attachments.media_keys[media_i] });
+                                if (foundIndex > -1){
+                                initialResponse.includes["media"].splice(foundIndex, 1);
+                                }
                             }
                         }
                     }
